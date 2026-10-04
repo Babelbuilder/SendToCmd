@@ -1,12 +1,13 @@
 name: Build and publish releases
 on:
+  workflow_dispatch:
   push:
     tags: ['v1.0.0', 'v2.0.0']
 permissions:
   contents: read
 jobs:
   ubuntu:
-    if: github.ref_name == 'v2.0.0'
+    if: github.ref_name == 'v2.0.0' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +42,7 @@ jobs:
           name: ubuntu-package
           path: output/*
   macos:
-    if: github.ref_name == 'v2.0.0'
+    if: github.ref_name == 'v2.0.0' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -54,25 +55,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Qt
-        run: brew install qt
+        run: brew install qtbase
       - name: Build and test
         run: |
-          cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
+          cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qtbase)"
           cmake --build build-release --parallel 3
           ctest --test-dir build-release --output-on-failure
       - name: Deploy Qt and create DMG
         run: |
           mkdir -p output
           cp LICENSE docs/releases/v2.0.0.md build-release/SendToCmd.app/Contents/Resources/
-          "$(brew --prefix qt)/bin/macdeployqt" build-release/SendToCmd.app -dmg -always-overwrite
-          mv build-release/SendToCmd.dmg output/SendToCmd-2.0-macOS-${{ matrix.arch }}-untested.dmg
+          qt_prefix="$(brew --prefix qtbase)"
+          app="$PWD/build-release/SendToCmd.app"
+          mkdir -p "$app/Contents/PlugIns/platforms" "$app/Contents/PlugIns/styles"
+          cp "$qt_prefix/plugins/platforms/libqcocoa.dylib" "$app/Contents/PlugIns/platforms/"
+          cp "$qt_prefix/plugins/styles/libqmacstyle.dylib" "$app/Contents/PlugIns/styles/"
+          libpaths=()
+          for libdir in "$(brew --prefix)"/opt/*/lib; do
+            [[ ! -d "$libdir" ]] || libpaths+=("-libpath=$libdir")
+          done
+          "$qt_prefix/bin/macdeployqt" "$app" -no-plugins -no-codesign -always-overwrite "${libpaths[@]}" \
+            "-executable=$app/Contents/PlugIns/platforms/libqcocoa.dylib" \
+            "-executable=$app/Contents/PlugIns/styles/libqmacstyle.dylib" 2>&1 | tee deployment.log
+          if grep -q 'ERROR:' deployment.log; then exit 1; fi
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict "$app"
+          hdiutil create -volname SendToCmd -srcfolder "$app" -ov -format UDZO output/SendToCmd-2.0-macOS-${{ matrix.arch }}-untested.dmg
       - uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.arch }}-package
           path: output/*
   publish-v2:
     needs: [ubuntu, macos]
-    if: github.ref_name == 'v2.0.0'
+    if: github.ref_name == 'v2.0.0' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -90,7 +105,12 @@ jobs:
           cp LICENSE output/LICENSE.txt
           cp docs/releases/v2.0.0.md output/RELEASE-NOTES.md
           (cd output && sha256sum * > SHA256SUMS.txt)
-          gh release create v2.0.0 output/* --verify-tag --title 'SendToCmd 2.0.0' --notes-file docs/releases/v2.0.0.md --latest
+          if gh release view v2.0.0 >/dev/null 2>&1; then
+            gh release upload v2.0.0 output/* --clobber
+            gh release edit v2.0.0 --draft=false --notes-file docs/releases/v2.0.0.md --latest
+          else
+            gh release create v2.0.0 output/* --verify-tag --title 'SendToCmd 2.0.0' --notes-file docs/releases/v2.0.0.md --latest
+          fi
   publish-v1:
     if: github.ref_name == 'v1.0.0'
     runs-on: ubuntu-24.04
