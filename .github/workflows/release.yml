@@ -66,10 +66,11 @@ jobs:
           mkdir -p output
           cp LICENSE docs/releases/v2.0.0.md build-release/SendToCmd.app/Contents/Resources/
           qt_prefix="$(brew --prefix qtbase)"
+          qt_plugins="$(dirname "$(dirname "$(find -L "$qt_prefix" -name libqcocoa.dylib -print -quit)")")"
           app="$PWD/build-release/SendToCmd.app"
           mkdir -p "$app/Contents/PlugIns/platforms" "$app/Contents/PlugIns/styles"
-          cp "$qt_prefix/plugins/platforms/libqcocoa.dylib" "$app/Contents/PlugIns/platforms/"
-          cp "$qt_prefix/plugins/styles/libqmacstyle.dylib" "$app/Contents/PlugIns/styles/"
+          cp "$qt_plugins/platforms/libqcocoa.dylib" "$app/Contents/PlugIns/platforms/"
+          cp "$qt_plugins/styles/libqmacstyle.dylib" "$app/Contents/PlugIns/styles/"
           libpaths=()
           for libdir in "$(brew --prefix)"/opt/*/lib; do
             [[ ! -d "$libdir" ]] || libpaths+=("-libpath=$libdir")
