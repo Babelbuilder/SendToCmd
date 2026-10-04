@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SendToCmd
+Comment=Command notepad for external terminals
+Exec=SendToCmd
+Icon=sendtocmd
+Terminal=false
+Categories=Utility;Development;

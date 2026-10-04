@@ -1,0 +1,11 @@
+<RCC>
+  <qresource prefix="/icons">
+    <file>icons/sendtocmd-16.png</file>
+    <file>icons/sendtocmd-24.png</file>
+    <file>icons/sendtocmd-32.png</file>
+    <file>icons/sendtocmd-48.png</file>
+    <file>icons/sendtocmd-64.png</file>
+    <file>icons/sendtocmd-128.png</file>
+    <file>icons/sendtocmd-256.png</file>
+  </qresource>
+</RCC>
