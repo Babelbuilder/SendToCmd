@@ -1,14 +1,14 @@
 ## 下载 / Downloads
 
-- [2.0 正式发布 / Latest release](https://github.com/Babelbuilder/SendToCmd/releases/tag/v2.0.0)：Windows x64 已由用户验证基本功能；Ubuntu 24.04 x64、macOS Intel/Apple Silicon **未做实机功能测试 / not functionally tested**。
+- [2.1 正式发布 / Latest release](https://github.com/Babelbuilder/SendToCmd/releases/tag/v2.1.0)：Windows x64 已由用户验证基本功能；Ubuntu 24.04 x64、macOS Intel/Apple Silicon **未做实机功能测试 / not functionally tested**。
 - [1.0 Windows 归档 / Windows archive](https://github.com/Babelbuilder/SendToCmd/releases/tag/v1.0.0)：原始二进制、源代码及示例。
-- [发布说明 / Release notes](docs/releases/v2.0.0.md)：安装方法、平台限制及校验信息。
+- [发布说明 / Release notes](docs/releases/v2.1.0.md)：安装方法、平台限制及校验信息。
 
-# SendToCmd 2.0
+# SendToCmd 2.1
 
 ## 中文
 
-SendToCmd 2.0 是基于 Qt 6 Widgets、C++20 和 CMake 的跨平台命令记事本。当前版本实现了 Windows、macOS 和 Ubuntu X11 的外部终端窗口发送代码。Ubuntu Wayland 下可以打开和编辑文件，但桌面安全限制使外部窗口绑定及输入注入不可用。原 Windows C# 版本完整归档在 [`archive/windows-v1/`](archive/windows-v1/)。2.0 技术方案保存在 [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md)，各平台验证情况见 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)。
+SendToCmd 2.1 是基于 Qt 6 Widgets、C++20 和 CMake 的跨平台命令记事本。当前版本实现了 Windows、macOS 和 Ubuntu X11 的外部终端窗口发送代码。Ubuntu Wayland 下可以打开和编辑文件，但桌面安全限制使外部窗口绑定及输入注入不可用。原 Windows C# 版本完整归档在 [`archive/windows-v1/`](archive/windows-v1/)。2.0 技术方案保存在 [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md)，各平台验证情况见 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)。
 
 ### 多文件标签页
 
@@ -28,7 +28,7 @@ ctest --test-dir build --output-on-failure
 
 Windows 请用安装了 Qt 6 的 MSVC/MinGW 工具链构建；macOS 请用 Xcode Command Line Tools 和 Qt 6 构建。发布附件见上方下载入口：Windows 为已测试基本功能的单文件 EXE，Ubuntu 和 macOS 包尚未做实机功能测试。
 
-已生成 [Windows x64 单文件 EXE](https://github.com/Babelbuilder/SendToCmd/releases/download/v2.0.0/SendToCmd-2.0-Windows-x64.exe)，约 14.3 MB，可单独复制到 Windows 10/11 x64 电脑试运行，无需附带 Qt 或 MinGW DLL。新版静态 Qt 以 `FEATURE_optimize_size=ON`（`-Os`）和 `FEATURE_ltcg=OFF` 构建，所有原有静态插件均保留；相比原版 20.8 MB 缩小约 31%。要自行重建，请使用 **MinGW x64 构建的静态 Qt 6**（Core、Gui、Widgets 和 Windows 平台插件）以及相同的 MinGW 工具链。普通 Qt SDK 里的 `.a` 可能只是 DLL 的导入库，不能用于真正的静态构建。在 Windows PowerShell 中运行 `./packaging/windows-static.ps1 -QtStaticPrefix 'C:\path\to\static-qt'`；脚本会拒绝动态 Qt 并检查 EXE 的 DLL 导入。系统自带的 Windows DLL 仍正常使用。静态链接不等于代码签名，也不解除智能应用控制的拦截。按 Qt 开源许可证分发静态版时，还需满足 Qt 的许可证、源码和重新链接要求；详见 [Qt 官方说明](https://www.qt.io/development/open-source-lgpl-obligations)。
+已生成 [Windows x64 单文件 EXE](https://github.com/Babelbuilder/SendToCmd/releases/download/v2.1.0/SendToCmd-2.1-Windows-x64.exe)，约 16.8 MB，可单独复制到 Windows 10/11 x64 电脑试运行，无需附带 Qt 或 MinGW DLL。本版静态 Qt 6.8.3 以 `FEATURE_optimize_size=ON`（`-Os`）和 `FEATURE_ltcg=OFF` 构建。要自行重建，请使用 **MinGW x64 构建的静态 Qt 6**（Core、Gui、Widgets 和 Windows 平台插件）以及相同的 MinGW 工具链。普通 Qt SDK 里的 `.a` 可能只是 DLL 的导入库，不能用于真正的静态构建。在 Windows PowerShell 中运行 `./packaging/windows-static.ps1 -QtStaticPrefix 'C:\path\to\static-qt'`；脚本会拒绝动态 Qt 并检查 EXE 的 DLL 导入。系统自带的 Windows DLL 仍正常使用。静态链接不等于代码签名，也不解除智能应用控制的拦截。按 Qt 开源许可证分发静态版时，还需满足 Qt 的许可证、源码和重新链接要求；详见 [Qt 官方说明](https://www.qt.io/development/open-source-lgpl-obligations)。
 
 Windows 发布包尚未进行代码签名。如果 Windows 11“智能应用控制”提示无法验证发布者并阻止运行，完整性校验或取消文件“解除锁定”不能把它变成受信任的已签名程序。微软目前不提供单个应用的放行例外；在启用该保护的设备上正式分发，需要使用受信任的代码签名证书签署并验证发布包。不要为了运行这个测试包关闭主机的安全保护。参见 [微软智能应用控制常见问题](https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions)。窗口、任务栏、Windows EXE、Linux 和 macOS 图标现由 `packaging/make_icons.py` 从同一套绿色纸飞机图形生成。
 
@@ -86,7 +86,7 @@ Windows 通常默认使用 Ctrl+V；绑定 MobaXterm 时，若未手动设定粘
 
 ## English
 
-SendToCmd 2.0 is a Qt 6 Widgets, C++20, and CMake command notepad. External terminal sending code is implemented for Windows, macOS, and Ubuntu X11. On Ubuntu Wayland, the editor works, but external window binding and input injection are unavailable under desktop security restrictions. The original Windows C# release is preserved in [`archive/windows-v1/`](archive/windows-v1/); the design is in [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md), and platform verification is tracked in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
+SendToCmd 2.1 is a Qt 6 Widgets, C++20, and CMake command notepad. External terminal sending code is implemented for Windows, macOS, and Ubuntu X11. On Ubuntu Wayland, the editor works, but external window binding and input injection are unavailable under desktop security restrictions. The original Windows C# release is preserved in [`archive/windows-v1/`](archive/windows-v1/); the design is in [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md), and platform verification is tracked in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 
 ### Multiple file tabs
 
@@ -106,7 +106,7 @@ ctest --test-dir build --output-on-failure
 
 Build with a Qt 6 MSVC/MinGW toolchain on Windows or Xcode Command Line Tools and Qt 6 on macOS. Download packages from Releases above: Windows is the standalone EXE with user-verified basic functionality; Ubuntu/macOS packages have not been functionally tested on user machines.
 
-A [single-file Windows x64 EXE](https://github.com/Babelbuilder/SendToCmd/releases/download/v2.0.0/SendToCmd-2.0-Windows-x64.exe), about 14.3 MB, is available for testing on Windows 10/11 x64 without separate Qt or MinGW DLLs. Static Qt was built with `FEATURE_optimize_size=ON` (`-Os`) and `FEATURE_ltcg=OFF`, retaining all previously linked static plugins; this is about 31% smaller than the original 20.8 MB build. To rebuild it, use a **static MinGW x64 Qt 6** build (Core, Gui, Widgets, and the Windows platform plugin) with its matching MinGW toolchain. The `.a` files in a regular Qt SDK can be DLL import libraries rather than static Qt libraries. Run `./packaging/windows-static.ps1 -QtStaticPrefix 'C:\path\to\static-qt'` in Windows PowerShell. It rejects shared Qt and inspects DLL imports. Normal Windows system DLLs are still used. Static linking does not sign the EXE or bypass Smart App Control. Distribution under Qt's open-source licenses also requires compliance with the Qt license, source, and relinking obligations; see [Qt's guidance](https://www.qt.io/development/open-source-lgpl-obligations).
+A [single-file Windows x64 EXE](https://github.com/Babelbuilder/SendToCmd/releases/download/v2.1.0/SendToCmd-2.1-Windows-x64.exe), about 16.8 MB, is available for testing on Windows 10/11 x64 without separate Qt or MinGW DLLs. Static Qt 6.8.3 was built with `FEATURE_optimize_size=ON` (`-Os`) and `FEATURE_ltcg=OFF`. To rebuild it, use a **static MinGW x64 Qt 6** build (Core, Gui, Widgets, and the Windows platform plugin) with its matching MinGW toolchain. The `.a` files in a regular Qt SDK can be DLL import libraries rather than static Qt libraries. Run `./packaging/windows-static.ps1 -QtStaticPrefix 'C:\path\to\static-qt'` in Windows PowerShell. It rejects shared Qt and inspects DLL imports. Normal Windows system DLLs are still used. Static linking does not sign the EXE or bypass Smart App Control. Distribution under Qt's open-source licenses also requires compliance with the Qt license, source, and relinking obligations; see [Qt's guidance](https://www.qt.io/development/open-source-lgpl-obligations).
 
 The Windows release is unsigned. If Windows 11 Smart App Control blocks it because the publisher cannot be verified, a checksum or the file's “Unblock” property cannot make it trusted signed code. Microsoft currently provides no per-app exception. Distribution on a protected device requires a properly signed and tested release. Do not disable the host's security protection just to run this test package. See [Microsoft's Smart App Control FAQ](https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions). The window, taskbar, Windows EXE, Linux, and macOS icons now share the green paper-plane artwork generated by `packaging/make_icons.py`.
 
