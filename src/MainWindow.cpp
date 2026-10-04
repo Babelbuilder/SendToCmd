@@ -26,6 +26,9 @@
 #include <QSaveFile>
 #include <QStringDecoder>
 #include <QTextBlock>
+#include <QTabWidget>
+#include <QTabBar>
+#include <QSignalBlocker>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <utility>
@@ -63,6 +66,25 @@ protected:
         p.setBrush(shade(QColor(QStringLiteral("#267952"))));
         p.drawPolygon(QPolygonF{QPointF(125, 270), QPointF(512, 0), QPointF(242, 387), QPointF(87, 425)});
         p.restore();
+    }
+};
+
+class TabCloseButton : public QToolButton {
+public:
+    explicit TabCloseButton(QWidget *parent) : QToolButton(parent) {
+        setFixedSize(18, 18); setCursor(Qt::PointingHandCursor);
+    }
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter p(this); p.setRenderHint(QPainter::Antialiasing);
+        if (underMouse()) {
+            p.setPen(Qt::NoPen); p.setBrush(QColor(QStringLiteral("#f6e5e5")));
+            p.drawRoundedRect(rect().adjusted(1, 1, -1, -1), 3, 3);
+        }
+        p.setPen(QPen(underMouse() ? QColor(QStringLiteral("#a94f4f")) : QColor(QStringLiteral("#7e8c9b")),
+                      1.5, Qt::SolidLine, Qt::RoundCap));
+        p.drawLine(QPointF(6, 6), QPointF(12, 12));
+        p.drawLine(QPointF(12, 6), QPointF(6, 12));
     }
 };
 
@@ -121,6 +143,7 @@ MainWindow::MainWindow(QWidget *parent)
                  << add(fileMenu_, QKeySequence::Open, [this] { openFile(); })
                  << add(fileMenu_, QKeySequence::Save, [this] { saveFile(false); })
                  << add(fileMenu_, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), [this] { saveFile(true); });
+    fileActions_ << add(fileMenu_, QKeySequence::Close, [this] { closeTab(tabs_->currentIndex()); });
     fileMenu_->addSeparator();
     fileActions_ << add(fileMenu_, {}, [this] { close(); });
     editActions_ << add(editMenu_, QKeySequence::Undo, [this] { editor_->undo(); })
@@ -195,7 +218,15 @@ MainWindow::MainWindow(QWidget *parent)
     topLayout->addWidget(targetLabel_, 1); topLayout->addWidget(bindLabel_); topLayout->addWidget(picker_);
     layout->addWidget(top);
 
-    editor_ = new CommandEditor(root); layout->addWidget(editor_, 1);
+    tabs_ = new QTabWidget(root);
+    tabs_->setObjectName(QStringLiteral("documentTabs"));
+    tabs_->setDocumentMode(true);
+    tabs_->setTabsClosable(false);
+    tabs_->setMovable(true);
+    tabs_->setElideMode(Qt::ElideMiddle);
+    tabs_->tabBar()->setExpanding(false);
+    tabs_->tabBar()->setUsesScrollButtons(true);
+    layout->addWidget(tabs_, 1);
     auto *footer = new QWidget(root); footer->setObjectName(QStringLiteral("footer"));
     auto *footerLayout = new QHBoxLayout(footer);
     footerLayout->setContentsMargins(12, 6, 12, 6); footerLayout->setSpacing(7);
@@ -213,12 +244,25 @@ MainWindow::MainWindow(QWidget *parent)
     setStyleSheet(QStringLiteral(
         "#top,#footer{background:#f8fafd;} #top{border-bottom:1px solid #e6ebf1;}"
         "#footer{border-top:1px solid #e1e7ef;} QMenuBar{background:transparent;}"
-        "QPlainTextEdit{background:white;color:#263340;} QLabel{color:#53677f;}"));
+        "QPlainTextEdit{background:white;color:#263340;} QLabel{color:#53677f;}"
+        "QTabWidget::pane{border:0;} QTabBar{background:#f8fafd;}"
+        "QTabBar::tab{background:#edf1f6;color:#53677f;padding:6px 12px;"
+        "border:1px solid #e1e7ef;border-bottom:0;margin-right:2px;min-width:80px;}"
+        "QTabBar::tab:selected{background:white;color:#263340;border-top:2px solid #37966c;}"
+        "QTabBar::tab:hover:!selected{background:#e4ecef;}"));
 
-    connect(editor_, &QPlainTextEdit::modificationChanged, this, &MainWindow::updateTitle);
-    connect(editor_, &QPlainTextEdit::cursorPositionChanged, this, [this] {
-        if (!busy_ && !autoEngine_.running()) statusLabel_->setText(t("Line ", "第 ") + QString::number(editor_->currentLine() + 1) + t("", " 行"));
+    connect(tabs_, &QTabWidget::currentChanged, this, &MainWindow::activateDocument);
+    connect(tabs_, &QTabWidget::tabCloseRequested, this, &MainWindow::closeTab);
+    connect(tabs_, &QTabWidget::tabBarDoubleClicked, this, [this](int index) { if (index < 0) newFile(); });
+    auto *nextTab = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Tab), this);
+    connect(nextTab, &QShortcut::activated, this, [this] {
+        tabs_->setCurrentIndex((tabs_->currentIndex() + 1) % tabs_->count());
     });
+    auto *previousTab = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Tab), this);
+    connect(previousTab, &QShortcut::activated, this, [this] {
+        tabs_->setCurrentIndex((tabs_->currentIndex() + tabs_->count() - 1) % tabs_->count());
+    });
+    addDocument();
     connect(autoCheck_, &QCheckBox::toggled, this, &MainWindow::updateSendButton);
     connect(sendButton_, &QToolButton::clicked, this, &MainWindow::sendRequested);
     connect(&autoEngine_, &AutoSendEngine::lineSent, this, [this](int line) {
@@ -241,7 +285,7 @@ void MainWindow::retranslate() {
     settingsMenu_->setTitle(t("Settings", "设置")); languageMenu_->setTitle(t("Language", "语言"));
     methodMenu_->setTitle(t("Input method", "输入方式")); pasteMenu_->setTitle(t("Terminal paste shortcut", "终端粘贴快捷键"));
     const QStringList file{t("New", "新建"), t("Open...", "打开..."), t("Save", "保存"),
-                           t("Save As...", "另存为..."), t("Exit", "退出")};
+                           t("Save As...", "另存为..."), t("Close Tab", "关闭标签页"), t("Exit", "退出")};
     for (int i = 0; i < file.size(); ++i) fileActions_[i]->setText(file[i]);
     const QStringList edit{t("Undo", "撤销"), t("Cut", "剪切"), t("Copy", "复制"),
                            t("Paste", "粘贴"), t("Select All", "全选"), t("Find...", "查找...")};
@@ -259,8 +303,10 @@ void MainWindow::retranslate() {
     picker_->setToolTip(t("Hold, drag to a terminal window, then release", "按住拖到终端窗口，松开绑定"));
     intervalLabel_->setText(t("Interval", "间隔")); secondLabel_->setText(t("s", "秒"));
     autoCheck_->setText(t("Auto send", "自动发送"));
-    editor_->setRangeLabels(t("Set Start (green)", "设为起点（绿点）"),
-                            t("Set End (red)", "设为终点（红点）"), t("Clear Start and End", "清除起点和终点"));
+    for (auto *document : documents_.keys())
+        document->setRangeLabels(t("Set Start (green)", "设为起点（绿点）"),
+                                t("Set End (red)", "设为终点（红点）"), t("Clear Start and End", "清除起点和终点"));
+    updateDocumentTabs();
     updateTitle(); updateTargetLabel(); updateSendButton();
     statusLabel_->setText(t("Line ", "第 ") + QString::number(editor_->currentLine() + 1) + t("", " 行"));
 }
@@ -270,9 +316,77 @@ void MainWindow::setLanguage(bool chinese) {
     settings_.setValue(QStringLiteral("language"), chinese ? QStringLiteral("zh") : QStringLiteral("en"));
     retranslate();
 }
+CommandEditor *MainWindow::addDocument() {
+    auto *document = new CommandEditor(tabs_);
+    documents_.insert(document, {{}, nextUntitledNumber_++});
+    document->setRangeLabels(t("Set Start (green)", "设为起点（绿点）"),
+                            t("Set End (red)", "设为终点（红点）"), t("Clear Start and End", "清除起点和终点"));
+    connect(document, &QPlainTextEdit::modificationChanged, this, [this] { updateDocumentTabs(); updateTitle(); });
+    connect(document, &QPlainTextEdit::cursorPositionChanged, this, [this, document] {
+        if (document == editor_ && !busy_ && !autoEngine_.running())
+            statusLabel_->setText(t("Line ", "第 ") + QString::number(document->currentLine() + 1) + t("", " 行"));
+    });
+    const int index = tabs_->addTab(document, documentName(document));
+    auto *closeButton = new TabCloseButton(tabs_->tabBar());
+    closeButton->setObjectName(QStringLiteral("closeDocumentButton"));
+    tabs_->tabBar()->setTabButton(index, QTabBar::RightSide, closeButton);
+    connect(closeButton, &QToolButton::clicked, this, [this, document] { closeTab(tabs_->indexOf(document)); });
+    updateDocumentTabs();
+    tabs_->setCurrentIndex(index);
+    document->setFocus();
+    return document;
+}
+QString MainWindow::documentName(CommandEditor *document) const {
+    const auto state = documents_.value(document);
+    return state.path.isEmpty() ? t("Untitled ", "未命名 ") + QString::number(state.untitledNumber)
+                                : QFileInfo(state.path).fileName();
+}
+void MainWindow::updateDocumentTabs() {
+    for (int i = 0; i < tabs_->count(); ++i) {
+        auto *document = static_cast<CommandEditor *>(tabs_->widget(i));
+        tabs_->setTabText(i, (document->document()->isModified() ? QStringLiteral("*") : QString()) + documentName(document));
+        const QString path = documents_.value(document).path;
+        tabs_->setTabToolTip(i, path.isEmpty() ? documentName(document) : path);
+        if (auto *button = tabs_->tabBar()->tabButton(i, QTabBar::RightSide)) {
+            button->setToolTip(t("Close %1", "关闭 %1").arg(documentName(document)));
+            button->setAccessibleName(button->toolTip());
+        }
+    }
+}
+void MainWindow::activateDocument(int index) {
+    auto *document = index < 0 ? nullptr : static_cast<CommandEditor *>(tabs_->widget(index));
+    if (document == editor_) return;
+    // Cancel in-flight input before changing which document receives progress.
+    if (autoEngine_.running()) autoEngine_.stop();
+    ++manualGeneration_;
+    target_.cancel();
+    setBusy(false);
+    editor_ = document;
+    if (!editor_) return;
+    updateTitle();
+    statusLabel_->setText(t("Line ", "第 ") + QString::number(editor_->currentLine() + 1) + t("", " 行"));
+    editor_->setFocus();
+}
 void MainWindow::updateTitle() {
-    setWindowTitle(QStringLiteral("SendToCmd — ") + (editor_->document()->isModified() ? QStringLiteral("*") : QString()) +
-                   (currentPath_.isEmpty() ? t("Untitled", "未命名") : QFileInfo(currentPath_).fileName()));
+    if (!editor_) return;
+    setWindowTitle(QStringLiteral("SendToCmd — ") + (editor_->document()->isModified() ? QStringLiteral("*") : QString()) + documentName(editor_));
+}
+void MainWindow::closeTab(int index) {
+    if (index < 0 || index >= tabs_->count()) return;
+    if (autoEngine_.running()) autoEngine_.stop();
+    ++manualGeneration_; target_.cancel(); setBusy(false);
+    tabs_->setCurrentIndex(index);
+    if (!confirmDiscard()) return;
+    auto *document = editor_;
+    {
+        const QSignalBlocker blocker(tabs_);
+        tabs_->removeTab(index);
+    }
+    editor_ = nullptr;
+    documents_.remove(document);
+    document->deleteLater();
+    if (tabs_->count() == 0) addDocument();
+    else activateDocument(tabs_->currentIndex());
 }
 void MainWindow::updateTargetLabel() {
     QString full = target_.window().valid() ? target_.window().title : t("Not bound", "未绑定");
@@ -292,7 +406,7 @@ void MainWindow::updateSendButton() {
 }
 void MainWindow::setBusy(bool busy) {
     busy_ = busy;
-    editor_->setReadOnly(busy);
+    for (auto *document : documents_.keys()) document->setReadOnly(busy);
     picker_->setEnabled(!busy);
     autoCheck_->setEnabled(!busy);
     interval_->setEnabled(!busy);
@@ -419,7 +533,7 @@ void MainWindow::onAutoFinished(bool completed, const QString &message) {
 bool MainWindow::confirmDiscard() {
     if (!editor_->document()->isModified()) return true;
     auto answer = QMessageBox::question(this, QStringLiteral("SendToCmd"),
-        t("Save changes to the current file?", "是否保存当前文件？"),
+        t("Save changes to %1?", "是否保存 %1 的修改？").arg(documentName(editor_)),
         QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
     if (answer == QMessageBox::Cancel) return false;
     return answer == QMessageBox::No || saveFile(false);
@@ -427,38 +541,62 @@ bool MainWindow::confirmDiscard() {
 void MainWindow::newFile() {
     if (busy_ && !autoEngine_.running()) return;
     if (autoEngine_.running()) autoEngine_.stop();
-    if (!confirmDiscard()) return;
-    editor_->setPlainText({}); editor_->clearRange(); editor_->document()->setModified(false);
-    currentPath_.clear(); updateTitle();
+    addDocument();
 }
 void MainWindow::openFile() {
     if (busy_ && !autoEngine_.running()) return;
     if (autoEngine_.running()) autoEngine_.stop();
-    if (!confirmDiscard()) return;
-    const QString path = QFileDialog::getOpenFileName(this, t("Open", "打开"), {}, t("Text files (*.txt);;All files (*)", "文本文件 (*.txt);;所有文件 (*)"));
-    if (path.isEmpty()) return;
+    const QStringList paths = QFileDialog::getOpenFileNames(this, t("Open", "打开"), {},
+        t("Text files (*.txt);;All files (*)", "文本文件 (*.txt);;所有文件 (*)"));
+    for (const QString &path : paths) openDocument(path);
+}
+bool MainWindow::openDocument(const QString &path) {
+    const QString canonical = QFileInfo(path).canonicalFilePath();
+    if (!canonical.isEmpty()) {
+        for (int i = 0; i < tabs_->count(); ++i) {
+            auto *document = static_cast<CommandEditor *>(tabs_->widget(i));
+            if (QFileInfo(documents_.value(document).path).canonicalFilePath() == canonical) {
+                tabs_->setCurrentIndex(i); return true;
+            }
+        }
+    }
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) { error(file.errorString()); return; }
+    if (!file.open(QIODevice::ReadOnly)) { error(file.errorString()); return false; }
     QByteArray bytes = file.readAll();
+    if (file.error() != QFileDevice::NoError) { error(file.errorString()); return false; }
     if (bytes.startsWith("\xEF\xBB\xBF")) bytes.remove(0, 3);
     QStringDecoder decoder(QStringDecoder::Utf8);
     QString content = decoder.decode(bytes);
-    if (decoder.hasError()) { error(t("The file is not valid UTF-8.", "文件不是有效的 UTF-8 编码。")); return; }
-    editor_->setPlainText(content); editor_->clearRange(); editor_->document()->setModified(false);
-    currentPath_ = path; editor_->goToLine(0); updateTitle();
+    if (decoder.hasError()) { error(t("The file is not valid UTF-8.", "文件不是有效的 UTF-8 编码。")); return false; }
+    auto *document = addDocument();
+    document->setPlainText(content); document->document()->setModified(false);
+    documents_[document].path = QFileInfo(path).absoluteFilePath();
+    document->goToLine(0); updateDocumentTabs(); updateTitle();
+    return true;
 }
 bool MainWindow::saveFile(bool saveAs) {
-    QString path = currentPath_;
+    QString path = documents_.value(editor_).path;
     if (path.isEmpty() || saveAs) {
         path = QFileDialog::getSaveFileName(this, t("Save As", "另存为"), path,
             t("Text files (*.txt);;All files (*)", "文本文件 (*.txt);;所有文件 (*)"));
         if (path.isEmpty()) return false;
     }
+    const QFileInfo destination(path);
+    for (auto *document : documents_.keys()) {
+        if (document == editor_ || documents_.value(document).path.isEmpty()) continue;
+        const QFileInfo other(documents_.value(document).path);
+        if (other.absoluteFilePath() == destination.absoluteFilePath() ||
+            (!destination.canonicalFilePath().isEmpty() && other.canonicalFilePath() == destination.canonicalFilePath())) {
+            error(t("This file is already open in another tab.", "此文件已在另一个标签页打开。"));
+            return false;
+        }
+    }
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly)) { error(file.errorString()); return false; }
     const QByteArray bytes = editor_->toPlainText().toUtf8();
     if (file.write(bytes) != bytes.size() || !file.commit()) { error(file.errorString()); return false; }
-    currentPath_ = path; editor_->document()->setModified(false); updateTitle();
+    documents_[editor_].path = QFileInfo(path).absoluteFilePath();
+    editor_->document()->setModified(false); updateDocumentTabs(); updateTitle();
     statusLabel_->setText(t("Saved: ", "已保存：") + path);
     return true;
 }
@@ -486,7 +624,10 @@ void MainWindow::findText() {
 }
 void MainWindow::closeEvent(QCloseEvent *event) {
     if (autoEngine_.running()) autoEngine_.stop();
-    if (!confirmDiscard()) { event->ignore(); return; }
-    ++manualGeneration_; target_.cancel();
+    ++manualGeneration_; target_.cancel(); setBusy(false);
+    for (int i = 0; i < tabs_->count(); ++i) {
+        tabs_->setCurrentIndex(i);
+        if (!confirmDiscard()) { event->ignore(); return; }
+    }
     event->accept();
 }

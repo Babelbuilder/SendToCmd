@@ -10,6 +10,12 @@
 
 SendToCmd 2.0 是基于 Qt 6 Widgets、C++20 和 CMake 的跨平台命令记事本。当前版本实现了 Windows、macOS 和 Ubuntu X11 的外部终端窗口发送代码。Ubuntu Wayland 下可以打开和编辑文件，但桌面安全限制使外部窗口绑定及输入注入不可用。原 Windows C# 版本完整归档在 [`archive/windows-v1/`](archive/windows-v1/)。2.0 技术方案保存在 [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md)，各平台验证情况见 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)。
 
+### 多文件标签页
+
+编辑区上方的标签页支持同时打开多份命令文件。新建会创建独立标签；打开支持多选，重复打开同一文件会切换到已有标签。每份文件独立保留文本、撤销记录、光标、滚动位置及起止行标记。标签可拖动排序，未保存修改用 `*` 表示，悬停显示完整路径。
+
+点击标签上的关闭按钮或使用 Ctrl+W（macOS 为 Cmd+W）关闭当前文件。Ctrl+Tab / Ctrl+Shift+Tab 切换文件；关闭最后一页后保留新的空白页。关闭和退出时提示保存修改。切换标签会停止自动发送并取消仍在等待的输入；已送到终端的内容无法撤销。终端绑定、发送间隔及输入设置仍共用。
+
 ### 构建
 
 安装 Qt 6.4+ 的 Core、Gui、Widgets 开发包和 CMake 3.21+。Linux X11 构建还需要 X11 和 XTest 开发包。然后执行：
@@ -81,6 +87,12 @@ Windows 通常默认使用 Ctrl+V；绑定 MobaXterm 时，若未手动设定粘
 ## English
 
 SendToCmd 2.0 is a Qt 6 Widgets, C++20, and CMake command notepad. External terminal sending code is implemented for Windows, macOS, and Ubuntu X11. On Ubuntu Wayland, the editor works, but external window binding and input injection are unavailable under desktop security restrictions. The original Windows C# release is preserved in [`archive/windows-v1/`](archive/windows-v1/); the design is in [`docs/TECHNICAL_PLAN.md`](docs/TECHNICAL_PLAN.md), and platform verification is tracked in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
+
+### Multiple file tabs
+
+Open multiple command files in the tab strip above the editor. New creates a separate tab; Open supports multiple selections and focuses an existing tab when opening the same file again. Each document retains its text, undo history, cursor, scroll position and range markers. Drag tabs to reorder, look for `*` to identify unsaved changes, and hover for the full path.
+
+Close with the tab close button or Ctrl+W (Cmd+W on macOS). Ctrl+Tab / Ctrl+Shift+Tab switch tabs. Closing the last tab creates a blank document. Closing documents or exiting prompts to save changes. Switching tabs stops auto send and cancels pending input; input already delivered cannot be undone. Terminal binding, interval and input settings remain shared.
 
 ### Build
 

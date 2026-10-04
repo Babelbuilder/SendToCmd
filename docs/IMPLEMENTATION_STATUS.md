@@ -15,3 +15,7 @@
 | 独立分发 | `dist/SendToCmd-2.0-Windows-x64.zip` 为含 Qt 运行库的未签名 Windows 便携测试包。`packaging/windows.ps1` 在 Windows 上生成独立目录和 ZIP，`packaging/sign-windows.ps1` 提供证书存储区或 Azure Artifact Signing 签名、验证、重打包流程；签名脚本尚待 Windows 实机执行。`packaging/` 另有 macOS DMG、Linux AppImage 脚本，v2.0.0 发布 Windows 单文件 EXE、Ubuntu 24.04 DEB 和 macOS 双架构 DMG；仅 Windows 基本功能已由用户验收，Ubuntu/macOS 未做实机功能测试。 |
 
 与技术方案相比，当前中英文文字由轻量的界面字符串切换实现，尚未迁移到 `.ts` / `QTranslator` 工作流。Linux X11 的键盘模式受当前键盘映射限制，无法保证所有 Unicode 字符；默认剪贴板模式用于完整文本。串口直连、SSH 直连、等待输出与日志分别属于方案中的后续版本，2.0 尚未实现。
+
+## 后续工作区改进：多文件标签页
+
+编辑区新增可拖动排序的文件标签页，可多选打开文件并识别已打开文件。各标签独立保留内容、修改状态、撤销记录、光标、滚动位置和发送范围。关闭/退出检查所有文件的未保存修改；切换文件取消待发送输入并停止自动发送。终端绑定及输入设置共用。新增 `window_tests` 验证这些交互；本次改进在 Ubuntu 环境编译和无显示界面的自动化测试通过，尚未在 Windows/macOS 实机验证，也未更新已发布的 2.0 二进制。

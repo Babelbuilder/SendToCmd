@@ -1,6 +1,7 @@
 #pragma once
 #include <QMainWindow>
 #include <QSettings>
+#include <QHash>
 #include <memory>
 #include "CommandEditor.h"
 #include "core/AutoSendEngine.h"
@@ -12,6 +13,7 @@ class QDoubleSpinBox;
 class QLabel;
 class QMenu;
 class QToolButton;
+class QTabWidget;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -21,6 +23,14 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
 private:
+    friend class MainWindowTests;
+    struct DocumentState { QString path; int untitledNumber = 0; };
+    CommandEditor *addDocument();
+    QString documentName(CommandEditor *editor) const;
+    void activateDocument(int index);
+    void closeTab(int index);
+    bool openDocument(const QString &path);
+    void updateDocumentTabs();
     QString t(const char *english, const char *chinese) const;
     void retranslate();
     void updateTitle();
@@ -40,6 +50,9 @@ private:
     void error(const QString &message);
 
     CommandEditor *editor_ = nullptr;
+    QTabWidget *tabs_ = nullptr;
+    QHash<CommandEditor *, DocumentState> documents_;
+    int nextUntitledNumber_ = 1;
     QLabel *targetLabel_ = nullptr;
     QLabel *statusLabel_ = nullptr;
     QLabel *intervalLabel_ = nullptr;
@@ -66,7 +79,6 @@ private:
     QSettings settings_;
     ExternalWindowTarget target_;
     AutoSendEngine autoEngine_;
-    QString currentPath_;
     bool chinese_ = false;
     bool picking_ = false;
     bool busy_ = false;

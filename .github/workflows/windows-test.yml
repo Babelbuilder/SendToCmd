@@ -1,0 +1,62 @@
+name: Windows standalone test build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up MinGW compiler
+        run: |
+          $compiler = (Get-Command g++.exe).Source
+          $compilerDirectory = Split-Path $compiler
+          $compilerDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "CXX=$($compiler.Replace('\','/'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CC=$((Join-Path $compilerDirectory 'gcc.exe').Replace('\','/'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          g++ --version
+      - uses: actions/cache@v4
+        id: qt-cache
+        with:
+          path: C:/qt-static-6.8.3
+          key: windows2025-qtbase-6.8.3-static-size-mingw-v1
+      - name: Build static Qt
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          curl.exe -L --fail --retry 3 https://download.qt.io/archive/qt/6.8/6.8.3/submodules/qtbase-everywhere-src-6.8.3.zip -o "$env:RUNNER_TEMP/qtbase.zip"
+          if ($LASTEXITCODE -ne 0) { throw 'Qt source download failed' }
+          7z x "$env:RUNNER_TEMP/qtbase.zip" "-o$env:RUNNER_TEMP/qt-source" | Out-Null
+          cmake -S "$env:RUNNER_TEMP/qt-source/qtbase-everywhere-src-6.8.3" -B "$env:RUNNER_TEMP/qt-build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=C:/qt-static-6.8.3 -DBUILD_SHARED_LIBS=OFF -DQT_BUILD_TESTS=OFF -DQT_BUILD_EXAMPLES=OFF -DFEATURE_optimize_size=ON -DFEATURE_ltcg=OFF "-DCMAKE_C_COMPILER=$env:CC" "-DCMAKE_CXX_COMPILER=$env:CXX"
+          if ($LASTEXITCODE -ne 0) { throw 'Qt configuration failed' }
+          cmake --build "$env:RUNNER_TEMP/qt-build" --parallel 4
+          if ($LASTEXITCODE -ne 0) { throw 'Qt build failed' }
+          cmake --install "$env:RUNNER_TEMP/qt-build"
+          if ($LASTEXITCODE -ne 0) { throw 'Qt installation failed' }
+      - name: Build standalone SendToCmd
+        run: |
+          $env:CMAKE_GENERATOR = 'Ninja'
+          ./packaging/windows-static.ps1 -QtStaticPrefix C:/qt-static-6.8.3 -BuildDirectory "$PWD/build-windows-tabs" -OutputFile "$PWD/dist/SendToCmd-Windows-x64-tabs-test.exe"
+          $hash = (Get-FileHash dist/SendToCmd-Windows-x64-tabs-test.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  SendToCmd-Windows-x64-tabs-test.exe" | Set-Content dist/SendToCmd-Windows-x64-tabs-test.exe.sha256 -Encoding ascii
+          git rev-parse HEAD | Set-Content dist/SOURCE-COMMIT.txt
+      - name: Check standalone EXE starts without Qt DLLs
+        run: |
+          $exe = (Resolve-Path dist/SendToCmd-Windows-x64-tabs-test.exe).Path
+          $env:QT_PLUGIN_PATH = ''
+          $process = Start-Process $exe -PassThru
+          Start-Sleep -Seconds 5
+          if ($process.HasExited) { throw "Application exited during startup: $($process.ExitCode)" }
+          Stop-Process -Id $process.Id
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SendToCmd-Windows-x64-tabs-test
+          path: |
+            dist/SendToCmd-Windows-x64-tabs-test.exe
+            dist/SendToCmd-Windows-x64-tabs-test.exe.sha256
+            dist/SOURCE-COMMIT.txt
+          retention-days: 30
