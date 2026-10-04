@@ -37,6 +37,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Qt build failed' }
           cmake --install "$env:RUNNER_TEMP/qt-build"
           if ($LASTEXITCODE -ne 0) { throw 'Qt installation failed' }
+      - name: Save static Qt SDK before building the app
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:/qt-static-6.8.3
+          key: windows2025-qtbase-6.8.3-static-size-mingw-v1
       - name: Build standalone SendToCmd
         run: |
           $env:CMAKE_GENERATOR = 'Ninja'
