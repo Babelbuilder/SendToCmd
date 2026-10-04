@@ -1,0 +1,118 @@
+name: Build and publish releases
+on:
+  push:
+    tags: ['v1.0.0', 'v2.0.0']
+permissions:
+  contents: read
+jobs:
+  ubuntu:
+    if: github.ref_name == 'v2.0.0'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build qt6-base-dev libx11-dev libxtst-dev
+      - name: Build and test
+        run: |
+          cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build-release --parallel 3
+          ctest --test-dir build-release --output-on-failure
+      - name: Package Ubuntu DEB
+        run: |
+          mkdir -p package/DEBIAN package/usr/share/applications package/usr/share/icons/hicolor/scalable/apps package/usr/share/doc/sendtocmd output
+          DESTDIR="$PWD/package" cmake --install build-release
+          cp resources/SendToCmd.desktop package/usr/share/applications/
+          cp resources/sendtocmd.svg package/usr/share/icons/hicolor/scalable/apps/
+          cp LICENSE docs/releases/v2.0.0.md package/usr/share/doc/sendtocmd/
+          cat > package/DEBIAN/control <<'EOF'
+          Package: sendtocmd
+          Version: 2.0.0
+          Architecture: amd64
+          Maintainer: Babelbuilder <16635174+Babelbuilder@users.noreply.github.com>
+          Depends: libqt6widgets6 (>= 6.4), libqt6gui6 (>= 6.4), libqt6core6t64 (>= 6.4), libx11-6, libxtst6, libstdc++6, libc6 (>= 2.38)
+          Section: utils
+          Priority: optional
+          Description: Command notepad with external terminal sending
+           Ubuntu 24.04 X11 package. Real terminal interaction has not been tested.
+          EOF
+          dpkg-deb --root-owner-group --build package output/SendToCmd-2.0-Ubuntu-24.04-x64-untested.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-package
+          path: output/*
+  macos:
+    if: github.ref_name == 'v2.0.0'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x64
+          - runner: macos-15
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt
+        run: brew install qt
+      - name: Build and test
+        run: |
+          cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
+          cmake --build build-release --parallel 3
+          ctest --test-dir build-release --output-on-failure
+      - name: Deploy Qt and create DMG
+        run: |
+          mkdir -p output
+          cp LICENSE docs/releases/v2.0.0.md build-release/SendToCmd.app/Contents/Resources/
+          "$(brew --prefix qt)/bin/macdeployqt" build-release/SendToCmd.app -dmg -always-overwrite
+          mv build-release/SendToCmd.dmg output/SendToCmd-2.0-macOS-${{ matrix.arch }}-untested.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}-package
+          path: output/*
+  publish-v2:
+    needs: [ubuntu, macos]
+    if: github.ref_name == 'v2.0.0'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: output
+          merge-multiple: true
+      - name: Publish tested Windows and untested Ubuntu/macOS packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp release-assets/v2.0.0/SendToCmd-2.0-Windows-x64.exe output/
+          cp LICENSE output/LICENSE.txt
+          cp docs/releases/v2.0.0.md output/RELEASE-NOTES.md
+          (cd output && sha256sum * > SHA256SUMS.txt)
+          gh release create v2.0.0 output/* --verify-tag --title 'SendToCmd 2.0.0' --notes-file docs/releases/v2.0.0.md --latest
+  publish-v1:
+    if: github.ref_name == 'v1.0.0'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package archived Windows version and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir output
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+          root = Path('archive/windows-v1')
+          with ZipFile('output/SendToCmd-1.0-Windows-archive.zip', 'w', ZIP_DEFLATED) as z:
+              for p in sorted(root.rglob('*')):
+                  if p.is_file() and '__pycache__' not in p.parts:
+                      z.write(p, 'SendToCmd-1.0/' + str(p.relative_to(root)))
+              z.write('LICENSE', 'SendToCmd-1.0/LICENSE.txt')
+          PY
+          cp archive/windows-v1/SendToCmd.exe output/SendToCmd-1.0-Windows.exe
+          (cd output && sha256sum * > SHA256SUMS.txt)
+          gh release create v1.0.0 output/* --verify-tag --title 'SendToCmd 1.0.0 — Windows archive' --notes-file docs/releases/v1.0.0.md --latest=false
