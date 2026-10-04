@@ -45,10 +45,10 @@ $objdump = Get-Command objdump.exe -ErrorAction Stop
 $imports = @(& $objdump.Source -p $OutputFile | Select-String -Pattern '^\s*DLL Name:\s*(.+)$' | ForEach-Object { $_.Matches[0].Groups[1].Value })
 if ($LASTEXITCODE -ne 0 -or $imports.Count -eq 0) { throw 'Could not inspect EXE imports.' }
 $systemDlls = @(
-    'advapi32.dll', 'authz.dll', 'bcrypt.dll', 'comctl32.dll', 'comdlg32.dll', 'crypt32.dll', 'd3d11.dll', 'd3d9.dll',
+    'advapi32.dll', 'authz.dll', 'bcrypt.dll', 'comctl32.dll', 'comdlg32.dll', 'crypt32.dll', 'd3d11.dll', 'd3d12.dll', 'd3d9.dll',
     'dwmapi.dll', 'dwrite.dll', 'dxgi.dll', 'gdi32.dll', 'imm32.dll',
     'kernel32.dll', 'msvcrt.dll', 'ucrtbase.dll', 'netapi32.dll', 'ole32.dll', 'oleaut32.dll',
-    'shcore.dll', 'shell32.dll', 'shlwapi.dll', 'user32.dll', 'userenv.dll',
+    'setupapi.dll', 'shcore.dll', 'shell32.dll', 'shlwapi.dll', 'user32.dll', 'userenv.dll',
     'uxtheme.dll', 'version.dll', 'winmm.dll', 'ws2_32.dll', 'wtsapi32.dll'
 )
 $unexpected = @($imports | Where-Object {
